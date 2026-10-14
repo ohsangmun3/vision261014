@@ -107,8 +107,8 @@
     <div class="nav-bar">
         <button class="nav-btn active" onclick="showGame('rps')">가위바위보</button>
         <button class="nav-btn" onclick="showGame('gomoku')">오목</button>
-        <!-- 세 번째 게임으로 이동하는 깃허브 페이지 링크 -->
-        <a href="galaga.html" class="nav-btn">🚀 갤러그 (New)</a>
+        <!-- 세 번째 게임(갤러그)으로 이동하는 링크가 3game.html 로 적용되어 있습니다 -->
+        <a href="3game.html" class="nav-btn">🚀 갤러그 (New)</a>
     </div>
 
     <!-- 2. 프리미엄 가위바위보 게임 -->
@@ -317,7 +317,6 @@
                 }
             }
             if (emptySpots.length > 0) {
-                // 현재는 무작위(초급) 배치. (실제 서비스시 난이도 로직 추가)
                 let move = emptySpots[Math.floor(Math.random() * emptySpots.length)];
                 board[move.y][move.x] = 2; 
                 drawBoard();
@@ -351,7 +350,6 @@
             return false;
         }
 
-        // 페이지 로드 시 오목판 초기화
         startGomoku();
     </script>
 </body>
