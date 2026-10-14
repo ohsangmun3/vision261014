@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프리미엄 가위바위보 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #0a0a0a;
+            background-image: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #0a0a0a 70%);
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        .font-cinzel {
+            font-family: 'Cinzel', serif;
+        }
+
+        /* 프리미엄 골드 텍스트 효과 */
+        .text-gold {
+            background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .gold-border {
+            border: 1px solid #bf953f;
+            box-shadow: 0 0 15px rgba(191, 149, 63, 0.2);
+        }
+
+        .gold-border:hover {
+            box-shadow: 0 0 25px rgba(191, 149, 63, 0.5);
+        }
+
+        /* 손 이모지 크기 및 그림자 */
+        .hand-icon {
+            font-size: 8rem;
+            filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.8));
+            transition: all 0.2s ease;
+            line-height: 1;
+        }
+
+        @media (max-width: 768px) {
+            .hand-icon { font-size: 6rem; }
+        }
+
+        /* 플레이어 손 반전 (마주보게 하기 위함) */
+        .flip-horizontal {
+            transform: scaleX(-1);
+        }
+
+        /* 흔들기 애니메이션 (플레이어) */
+        @keyframes shakePlayer {
+            0% { transform: scaleX(-1) translateY(0) rotate(0deg); }
+            25% { transform: scaleX(-1) translateY(-30px) rotate(-10deg); }
+            50% { transform: scaleX(-1) translateY(0) rotate(0deg); }
+            75% { transform: scaleX(-1) translateY(30px) rotate(10deg); }
+            100% { transform: scaleX(-1) translateY(0) rotate(0deg); }
+        }
+
+        /* 흔들기 애니메이션 (컴퓨터) */
+        @keyframes shakeComputer {
+            0% { transform: translateY(0) rotate(0deg); }
+            25% { transform: translateY(-30px) rotate(10deg); }
+            50% { transform: translateY(0) rotate(0deg); }
+            75% { transform: translateY(30px) rotate(-10deg); }
+            100% { transform: translateY(0) rotate(0deg); }
+        }
+
+        .animate-shake-player {
+            animation: shakePlayer 0.5s infinite;
+        }
+
+        .animate-shake-computer {
+            animation: shakeComputer 0.5s infinite;
+        }
+
+        /* 등장 애니메이션 */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 버튼 호버 시 고급스러운 글로우 효과 */
+        .btn-glow {
+            transition: all 0.3s ease;
+        }
+        .btn-glow:not(:disabled):hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(191, 149, 63, 0.4);
+            border-color: #fcf6ba;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-5xl flex flex-col items-center">
+        
+        <!-- Header -->
+        <div class="text-center mb-8 fade-in">
+            <h1 class="text-4xl md:text-6xl font-cinzel font-bold text-gold mb-2 tracking-wider">ROYAL RPS</h1>
+            <p class="text-gray-400 text-sm md:text-base uppercase tracking-[0.2em]">Best of 3 Rounds</p>
+        </div>
+
+        <!-- Score Board -->
+        <div class="flex justify-between items-center w-full max-w-2xl bg-black/40 backdrop-blur-md rounded-2xl p-6 gold-border mb-12 fade-in" style="animation-delay: 0.1s;">
+            <div class="text-center flex-1">
+                <p class="text-gray-400 text-sm tracking-widest mb-2 uppercase">Player</p>
+                <p id="player-score" class="text-5xl md:text-6xl font-cinzel text-gold font-bold transition-all duration-300">0</p>
+            </div>
+            <div class="text-center flex-1">
+                <span class="text-2xl text-gray-600 font-cinzel px-4 py-2 rounded-full border border-gray-800 bg-gray-900/50">VS</span>
+            </div>
+            <div class="text-center flex-1">
+                <p class="text-gray-400 text-sm tracking-widest mb-2 uppercase">Computer</p>
+                <p id="computer-score" class="text-5xl md:text-6xl font-cinzel text-gold font-bold transition-all duration-300">0</p>
+            </div>
+        </div>
+
+        <!-- Battle Arena -->
+        <div class="relative w-full max-w-3xl flex justify-between items-center mb-16 h-40 md:h-64 fade-in" style="animation-delay: 0.2s;">
+            
+            <!-- Player Hand -->
+            <div class="w-1/3 flex justify-center z-10">
+                <div id="player-hand" class="hand-icon flip-horizontal">✊</div>
+            </div>
+
+            <!-- Countdown / Round Result -->
+            <div class="w-1/3 flex justify-center items-center z-20 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                <div id="status-text" class="text-6xl md:text-8xl font-cinzel font-bold text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] transition-all duration-300"></div>
+            </div>
+
+            <!-- Computer Hand -->
+            <div class="w-1/3 flex justify-center z-10">
+                <div id="computer-hand" class="hand-icon">✊</div>
+            </div>
+            
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-wrap justify-center gap-4 md:gap-8 w-full max-w-2xl fade-in" style="animation-delay: 0.3s;">
+            <button onclick="playRound('rock')" class="game-btn btn-glow bg-black/60 gold-border rounded-xl px-8 py-4 flex flex-col items-center min-w-[120px]">
+                <span class="text-4xl mb-2">✊</span>
+                <span class="text-gray-300 text-sm tracking-widest uppercase font-semibold">Rock</span>
+            </button>
+            <button onclick="playRound('paper')" class="game-btn btn-glow bg-black/60 gold-border rounded-xl px-8 py-4 flex flex-col items-center min-w-[120px]">
+                <span class="text-4xl mb-2">✋</span>
+                <span class="text-gray-300 text-sm tracking-widest uppercase font-semibold">Paper</span>
+            </button>
+            <button onclick="playRound('scissors')" class="game-btn btn-glow bg-black/60 gold-border rounded-xl px-8 py-4 flex flex-col items-center min-w-[120px]">
+                <span class="text-4xl mb-2">✌️</span>
+                <span class="text-gray-300 text-sm tracking-widest uppercase font-semibold">Scissors</span>
+            </button>
+        </div>
+
+        <!-- Status Message below buttons -->
+        <p id="round-result" class="mt-8 text-xl text-gray-400 font-light h-8 text-center transition-all duration-300"></p>
+
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-500">
+        <div class="bg-gray-900 border border-[#bf953f] p-10 md:p-16 rounded-2xl shadow-[0_0_50px_rgba(191,149,63,0.3)] text-center max-w-lg w-full mx-4 transform scale-95 transition-transform duration-500" id="modal-content">
+            <h2 class="text-5xl font-cinzel font-bold text-gold mb-4" id="modal-title">VICTORY</h2>
+            <p class="text-gray-300 mb-10 text-lg" id="modal-desc">You have claimed the throne.</p>
+            
+            <button onclick="resetGame()" class="bg-gradient-to-r from-[#bf953f] to-[#aa771c] hover:from-[#fcf6ba] hover:to-[#bf953f] text-black font-bold uppercase tracking-widest py-4 px-10 rounded-full transition-all duration-300 shadow-[0_0_20px_rgba(191,149,63,0.4)] hover:shadow-[0_0_30px_rgba(252,246,186,0.6)] transform hover:-translate-y-1">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        let playerScore = 0;
+        let computerScore = 0;
+        let isPlaying = false;
+
+        // Constants
+        const emojis = {
+            'rock': '✊',
+            'paper': '✋',
+            'scissors': '✌️'
+        };
+        const choices = ['rock', 'paper', 'scissors'];
+
+        // DOM Elements
+        const playerHandEl = document.getElementById('player-hand');
+        const computerHandEl = document.getElementById('computer-hand');
+        const playerScoreEl = document.getElementById('player-score');
+        const computerScoreEl = document.getElementById('computer-score');
+        const statusTextEl = document.getElementById('status-text');
+        const roundResultEl = document.getElementById('round-result');
+        const buttons = document.querySelectorAll('.game-btn');
+        
+        const modal = document.getElementById('game-over-modal');
+        const modalContent = document.getElementById('modal-content');
+        const modalTitle = document.getElementById('modal-title');
+        const modalDesc = document.getElementById('modal-desc');
+
+        // Helper: Sleep function for animations
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        async function playRound(playerChoice) {
+            if (isPlaying) return;
+            isPlaying = true;
+
+            // 1. Setup UI for new round
+            roundResultEl.textContent = "";
+            setButtonsDisabled(true);
+            
+            // Reset hands to rock
+            playerHandEl.textContent = emojis['rock'];
+            computerHandEl.textContent = emojis['rock'];
+
+            // 2. Start shaking animation
+            playerHandEl.classList.add('animate-shake-player');
+            computerHandEl.classList.add('animate-shake-computer');
+
+            // 3. Countdown Sequence (3 seconds)
+            for (let i = 3; i > 0; i--) {
+                statusTextEl.textContent = i;
+                statusTextEl.style.transform = "scale(1.5)";
+                statusTextEl.style.opacity = "1";
+                
+                // Pop effect
+                await sleep(100);
+                statusTextEl.style.transform = "scale(1)";
+                
+                await sleep(900);
+            }
+
+            // 4. Stop shaking & Reveal
+            playerHandEl.classList.remove('animate-shake-player');
+            computerHandEl.classList.remove('animate-shake-computer');
+            statusTextEl.style.opacity = "0";
+            
+            await sleep(100); // slight pause before reveal
+            statusTextEl.textContent = "";
+
+            const computerChoice = choices[Math.floor(Math.random() * choices.length)];
+            
+            playerHandEl.textContent = emojis[playerChoice];
+            computerHandEl.textContent = emojis[computerChoice];
+
+            // 5. Evaluate Result
+            await sleep(300); // Pause to let user see hands
+            evaluate(playerChoice, computerChoice);
+        }
+
+        function evaluate(player, computer) {
+            let result = "";
+
+            if (player === computer) {
+                result = "DRAW";
+                roundResultEl.textContent = "Round drawn. No points awarded.";
+                roundResultEl.className = "mt-8 text-xl text-gray-400 font-light h-8 text-center";
+            } else if (
+                (player === 'rock' && computer === 'scissors') ||
+                (player === 'paper' && computer === 'rock') ||
+                (player === 'scissors' && computer === 'paper')
+            ) {
+                result = "WIN";
+                playerScore++;
+                updateScoreDisplay(playerScoreEl, playerScore);
+                roundResultEl.textContent = "You win the round!";
+                roundResultEl.className = "mt-8 text-xl text-[#bf953f] font-semibold h-8 text-center";
+            } else {
+                result = "LOSE";
+                computerScore++;
+                updateScoreDisplay(computerScoreEl, computerScore);
+                roundResultEl.textContent = "Computer wins the round.";
+                roundResultEl.className = "mt-8 text-xl text-red-400 font-semibold h-8 text-center";
+            }
+
+            // Flash Result in center
+            flashStatus(result);
+
+            // Check Game Over condition
+            setTimeout(() => {
+                if (playerScore >= 2 || computerScore >= 2) {
+                    showGameOver(playerScore >= 2);
+                } else {
+                    setButtonsDisabled(false);
+                    isPlaying = false;
+                }
+            }, 1500);
+        }
+
+        function updateScoreDisplay(element, score) {
+            element.textContent = score;
+            element.style.transform = "scale(1.3)";
+            setTimeout(() => {
+                element.style.transform = "scale(1)";
+            }, 300);
+        }
+
+        async function flashStatus(text) {
+            statusTextEl.textContent = text;
+            statusTextEl.style.opacity = "1";
+            statusTextEl.style.transform = "scale(1.2)";
+            statusTextEl.style.color = text === "WIN" ? "#bf953f" : (text === "LOSE" ? "#ef4444" : "#ffffff");
+            
+            await sleep(1000);
+            statusTextEl.style.opacity = "0";
+            await sleep(300);
+            statusTextEl.style.color = "#ffffff"; // reset
+        }
+
+        function setButtonsDisabled(disabled) {
+            buttons.forEach(btn => {
+                btn.disabled = disabled;
+            });
+        }
+
+        function showGameOver(isPlayerWin) {
+            modal.classList.remove('hidden');
+            
+            // Trigger reflow for transition
+            void modal.offsetWidth;
+            
+            modal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+
+            if (isPlayerWin) {
+                modalTitle.textContent = "VICTORY";
+                modalTitle.className = "text-5xl font-cinzel font-bold text-gold mb-4";
+                modalDesc.textContent = "You have claimed the throne with 2 points.";
+            } else {
+                modalTitle.textContent = "DEFEAT";
+                modalTitle.className = "text-5xl font-cinzel font-bold text-red-500 mb-4";
+                modalDesc.textContent = "The computer outsmarted you this time.";
+            }
+        }
+
+        function resetGame() {
+            // Hide modal
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                
+                // Reset State
+                playerScore = 0;
+                computerScore = 0;
+                playerScoreEl.textContent = '0';
+                computerScoreEl.textContent = '0';
+                roundResultEl.textContent = "";
+                statusTextEl.textContent = "";
+                
+                playerHandEl.textContent = emojis['rock'];
+                computerHandEl.textContent = emojis['rock'];
+                
+                setButtonsDisabled(false);
+                isPlaying = false;
+            }, 500);
+        }
+    </script>
+</body>
+</html>
