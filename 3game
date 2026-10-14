@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스페이스 슈터 (갤러그)</title>
+    <style>
+        :root {
+            --bg-color: #050510;
+            --surface: #1a1a2e;
+            --primary: #00f0ff;
+            --text: #ffffff;
+        }
+        body {
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden; /* 스크롤 방지 */
+        }
+        /* 공통 네비게이션 탭 (index.html로 돌아가기) */
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            background: var(--surface);
+            padding: 10px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+        .tab-btn {
+            background: transparent;
+            color: #aaa;
+            border: 2px solid transparent;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .tab-btn:hover { background: rgba(0, 240, 255, 0.1); color: var(--text); }
+        .tab-btn.active {
+            background: rgba(0, 240, 255, 0.2);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* 게임 영역 */
+        #game-area {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: 700px;
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+        }
+
+        /* 기체 선택 화면 (오버레이) */
+        #selection-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+        }
+        .ship-card {
+            background: var(--surface);
+            border: 2px solid #555;
+            padding: 15px;
+            margin: 10px;
+            border-radius: 10px;
+            width: 80%;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .ship-card:hover { border-color: var(--primary); transform: scale(1.05); }
+        
+        #ui-layer {
+            position: absolute;
+            top: 10px; left: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--primary);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 상단 게임 이동 메뉴 (index.html을 향함) -->
+    <div class="nav-tabs">
+        <a href="index.html" class="tab-btn">가위바위보</a>
+        <a href="index.html" class="tab-btn">오목</a>
+        <a href="#" class="tab-btn active">🚀 갤러그</a>
+    </div>
+
+    <!-- 게임 캔버스 영역 -->
+    <div id="game-area">
+        <canvas id="gameCanvas" width="500" height="700"></canvas>
+        <div id="ui-layer">점수: <span id="score">0</span></div>
+
+        <!-- 시작 전 기체 선택창 -->
+        <div id="selection-screen">
+            <h2 style="color:var(--primary); margin-bottom: 20px;">전투기를 선택하세요</h2>
+            
+            <div class="ship-card" onclick="startGame(1)">
+                <h3 style="color: #00f0ff;">1. 밸런스형 (기본)</h3>
+                <p style="font-size: 14px; color: #aaa;">빠르고 직선적인 단일 미사일 발사</p>
+            </div>
+            
+            <div class="ship-card" onclick="startGame(2)">
+                <h3 style="color: #ff3366;">2. 확산형 (스프레드)</h3>
+                <p style="font-size: 14px; color: #aaa;">넓은 범위를 공격하는 3방향 미사일</p>
+            </div>
+            
+            <div class="ship-card" onclick="startGame(3)">
+                <h3 style="color: #00ff66;">3. 파워형 (헤비)</h3>
+                <p style="font-size: 14px; color: #aaa;">연사속도는 느리지만 강력한 대형 관통 레이저</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gameState = 'select'; // select, playing, gameover
+        let score = 0;
+        let animationId;
+        let shipType = 1;
+        let lastFireTime = 0;
+
+        // 플레이어 객체
+        const player = {
+            x: 250, y: 600, width: 40, height: 40,
+            color: '#00f0ff'
+        };
+
+        const bullets = [];
+        const enemies = [];
+        
+        // 기체 종류 설정
+        const ships = {
+            1: { color: '#00f0ff', fireRate: 150, draw: drawShip1, fire: fireShip1 }, // 밸런스
+            2: { color: '#ff3366', fireRate: 300, draw: drawShip2, fire: fireShip2 }, // 확산
+            3: { color: '#00ff66', fireRate: 500, draw: drawShip3, fire: fireShip3 }  // 파워
+        };
+
+        // --- 마우스 및 터치로 이동 ---
+        function movePlayer(e) {
+            if (gameState !== 'playing') return;
+            const rect = canvas.getBoundingClientRect();
+            // 터치 이벤트와 마우스 이벤트 분기
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            
+            // 캔버스 비율에 맞게 좌표 계산
+            const scaleX = canvas.width / rect.width;
+            let newX = (clientX - rect.left) * scaleX;
+            
+            // 화면 밖으로 나가지 않게 고정
+            if (newX < player.width/2) newX = player.width/2;
+            if (newX > canvas.width - player.width/2) newX = canvas.width - player.width/2;
+            
+            player.x = newX;
+        }
+        canvas.addEventListener('mousemove', movePlayer);
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); movePlayer(e); }, { passive: false });
+
+        // --- 게임 시작 ---
+        function startGame(type) {
+            shipType = type;
+            player.color = ships[type].color;
+            gameState = 'playing';
+            score = 0;
+            document.getElementById('score').innerText = score;
+            document.getElementById('selection-screen').style.display = 'none';
+            bullets.length = 0;
+            enemies.length = 0;
+            gameLoop();
+        }
+
+        // --- 무기 발사 로직 ---
+        function fireShip1() {
+            bullets.push({ x: player.x, y: player.y - 20, vx: 0, vy: -10, width: 4, height: 15, color: '#00f0ff', pierce: false });
+        }
+        function fireShip2() {
+            bullets.push({ x: player.x, y: player.y - 20, vx: 0, vy: -8, width: 4, height: 10, color: '#ff3366', pierce: false });
+            bullets.push({ x: player.x, y: player.y - 20, vx: -3, vy: -7, width: 4, height: 10, color: '#ff3366', pierce: false });
+            bullets.push({ x: player.x, y: player.y - 20, vx: 3, vy: -7, width: 4, height: 10, color: '#ff3366', pierce: false });
+        }
+        function fireShip3() {
+            bullets.push({ x: player.x, y: player.y - 40, vx: 0, vy: -5, width: 15, height: 40, color: '#00ff66', pierce: true }); // 관통 레이저
+        }
+
+        // --- 적 생성 ---
+        function spawnEnemy() {
+            if (Math.random() < 0.05) {
+                const size = 30 + Math.random() * 20;
+                enemies.push({
+                    x: Math.random() * (canvas.width - size) + size/2,
+                    y: -50, width: size, height: size,
+                    speed: 2 + Math.random() * 3
+                });
+            }
+        }
+
+        // --- 그리기 함수들 ---
+        function drawShip1(ctx, x, y) {
+            ctx.fillStyle = player.color;
+            ctx.beginPath(); ctx.moveTo(x, y - 20); ctx.lineTo(x + 20, y + 20); ctx.lineTo(x - 20, y + 20); ctx.fill();
+        }
+        function drawShip2(ctx, x, y) {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(x - 20, y, 40, 15);
+            ctx.fillRect(x - 5, y - 15, 10, 20);
+        }
+        function drawShip3(ctx, x, y) {
+            ctx.fillStyle = player.color;
+            ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI, true); ctx.fill();
+            ctx.fillRect(x - 15, y, 30, 20);
+        }
+
+        function gameLoop(timestamp) {
+            if (gameState !== 'playing') return;
+
+            // 배경 지우기
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'; // 꼬리 효과
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 자동 발사
+            if (!lastFireTime) lastFireTime = timestamp;
+            if (timestamp - lastFireTime > ships[shipType].fireRate) {
+                ships[shipType].fire();
+                lastFireTime = timestamp;
+            }
+
+            // 플레이어 그리기
+            ships[shipType].draw(ctx, player.x, player.y);
+
+            // 미사일 이동 및 그리기
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.x += b.vx;
+                b.y += b.vy;
+                ctx.fillStyle = b.color;
+                ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+                
+                // 화면 밖 미사일 제거
+                if (b.y < -50 || b.x < -50 || b.x > canvas.width + 50) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 적 생성, 이동 및 충돌 체크
+            spawnEnemy();
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                e.y += e.speed;
+                ctx.fillStyle = '#ffaa00';
+                ctx.fillRect(e.x - e.width/2, e.y - e.height/2, e.width, e.height);
+
+                // 화면 밖 적 제거
+                if (e.y > canvas.height + 50) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                // 미사일과 적 충돌 체크
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    const b = bullets[j];
+                    if (b.x < e.x + e.width/2 && b.x + b.width > e.x - e.width/2 &&
+                        b.y < e.y + e.height/2 && b.y + b.height > e.y - e.height/2) {
+                        
+                        // 적 파괴
+                        enemies.splice(i, 1);
+                        score += 10;
+                        document.getElementById('score').innerText = score;
+                        
+                        // 관통 속성이 없으면 미사일도 파괴
+                        if (!b.pierce) bullets.splice(j, 1);
+                        break; 
+                    }
+                }
+
+                // 플레이어와 적 충돌 (게임 오버)
+                if (enemies[i] && 
+                    player.x - 15 < e.x + e.width/2 && player.x + 15 > e.x - e.width/2 &&
+                    player.y - 15 < e.y + e.height/2 && player.y + 15 > e.y - e.height/2) {
+                    
+                    gameState = 'gameover';
+                    ctx.fillStyle = 'white';
+                    ctx.font = '40px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
+                    
+                    setTimeout(() => {
+                        document.getElementById('selection-screen').style.display = 'flex';
+                    }, 2000);
+                }
+            }
+
+            animationId = requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
